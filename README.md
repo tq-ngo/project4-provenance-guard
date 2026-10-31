@@ -36,10 +36,15 @@
 
 ## What This Does
 
-<!-- The path a submission takes, from arriving to the label a reader sees.
-     Six or seven steps — this is the trace you wrote in Milestone 1. -->
+When a submission arrives at Provenance Guard, it passes through seven sequential stages before a reader sees its final label:
 
-
+1. **Ingestion & Validation (`app.py::submit`)**: The incoming JSON request is checked for valid `text` and `creator_id` fields. Payloads that are empty, malformed, or exceeding size bounds are rejected with HTTP 400.
+2. **Identity Assignment**: The service generates a unique `content_id` (UUIDv4) that permanently binds the submission text, its audit trail, and any subsequent appeal.
+3. **Signal 1 Evaluation (`detector.py::model_signal`)**: The local causal language model (`gpt2`) reads the text and evaluates its token-by-token perplexity (how predictable each word was given the preceding context), mapped to a 0.0–1.0 score where higher means more AI-like.
+4. **Signal 2 Evaluation (`stylometry.py::style_signal`)**: The text is analyzed purely as text structure without considering semantic meaning. It computes sentence length variance (coefficient of variation), vocabulary richness (type-token ratio), and punctuation density, normalized into a 0.0–1.0 score where higher means more AI-like.
+5. **Signal Combination (`scoring.py::combine_signals`)**: The two scores are combined using a weighted rule (60% model, 40% stylometry). If the two signals strongly diverge ($|\text{model\_score} - \text{style\_score}| \ge 0.40$), a disagreement dampener pulls the combined score toward 0.50 ("unsure") to prevent a false accusation.
+6. **Empathetic Label Mapping (`scoring.py::score_to_label`)**: The combined score is mapped against thresholds (human $\le 0.35$, AI $\ge 0.65$, unsure between) into a machine-readable guess and a reader-facing natural language label written without technical jargon.
+7. **Audit Logging & Response Dispatch (`audit.py::log_decision`)**: All nine required fields (`timestamp`, `content_id`, `creator_id`, `guess`, `model_score`, `style_score`, `combined_score`, `label`, `status="decided"`) are appended to `logs/audit.jsonl`, and an HTTP 200 JSON response containing both signal scores and the label is returned to the client.
 
 ---
 
@@ -54,18 +59,24 @@
 ### Signal one — the model signal
 
 **What it measures:**
+Token-level perplexity calculated by a local causal language model (`gpt2`). It measures how predictable each next token is based on standard English probability distributions, mapped via a logistic curve to a 0.0 to 1.0 score where higher means more predictable (more likely AI).
 
 **Why that might differ between human and AI writing:**
+Language models generate text by repeatedly selecting high-probability tokens from next-word distributions, resulting in low perplexity and high predictability. Human writing naturally wanders: it features idiosyncratic phrasing, unexpected word choices, abrupt tonal shifts, and domain-specific expressions that surprise the model.
 
 **What it can't see:**
+Predictability is not authorship. This signal cannot distinguish between an AI generating common phrases and an honest human writing plainly on purpose. Non-native English (ESL) writers, young students, or authors writing simple instructional or technical documentation use common words and standard sentence structures; `gpt2` finds them highly predictable and flags them as AI. Conversely, ornate, jargon-heavy, or highly stylized AI prose yields high perplexity and fools this signal into scoring it as human.
 
 ### Signal two — the style signal
 
 **What it measures:**
+The physical, structural surface geometry of the text across three metrics: sentence length spread (standard deviation of sentence length divided by the mean), lexical diversity (type-token ratio), and punctuation density (commas, semicolons, dashes, and quotes per 100 words).
 
 **Why that might differ between human and AI writing:**
+Autoregressive language models naturally produce uniform, evenly-cadenced sentences of medium length (15–22 words) with steady vocabulary recurrence. Human writing is inherently "lumpy": a three-word fragment often sits beside a 45-word compound sentence, accompanied by expressive punctuation like semicolons, em-dashes, and colons.
 
 **What it can't see:**
+This signal cannot read or comprehend meaning. It measures text only as shape and tokens. Any superficial modification that alters structure without changing content fools it: adding typos or misspellings artificially inflates vocabulary variety (type-token ratio), while inserting arbitrary line breaks or random exclamation marks warps sentence variance and punctuation density, causing AI text to register as human.
 
 ### The combining rule
 
@@ -73,8 +84,23 @@
      signals disagree? -->
 
 **The rule:**
+We compute a weighted average of the two signals (60% weight to Signal 1 because token perplexity across several hundred tokens provides a steadier baseline than short-sample syntax, and 40% weight to Signal 2). However, when the two signals strongly disagree ($|\text{model\_score} - \text{style\_score}| \ge 0.40$), the rule treats this divergence as epistemic uncertainty and pulls the combined score 50% towards the neutral midpoint (0.50). This guarantees that a single flawed signal cannot push an innocent writer past the AI threshold.
 
 **The numbers:**
+- `WEIGHT_MODEL_SIGNAL = 0.60`
+- `WEIGHT_STYLE_SIGNAL = 0.40`
+- `DISAGREEMENT_THRESHOLD = 0.40`
+- `HUMAN_THRESHOLD = 0.35`
+- `AI_THRESHOLD = 0.65`
+
+Formula:
+```python
+weighted_avg = 0.60 * model_score + 0.40 * style_score
+if abs(model_score - style_score) >= 0.40:
+    combined_score = 0.50 * weighted_avg + 0.50 * 0.50
+else:
+    combined_score = weighted_avg
+```
 
 **Where it lives:** `scoring.py::combine_signals`
 
@@ -82,6 +108,12 @@
      somewhere else, say where. -->
 
 **A case where my two signals split, and what my rule does with it:**
+Consider plain, clear human writing (such as an essay by a non-native English speaker):
+- Signal 1 (`model_score`): `0.80` (the vocabulary is basic and predictable to GPT-2).
+- Signal 2 (`style_score`): `0.30` (the sentence lengths vary naturally between short points and long explanatory sentences).
+The difference $|0.80 - 0.30| = 0.50 \ge 0.40$. A naive weighted average would yield $0.60 \times 0.80 + 0.40 \times 0.30 = 0.60$, dangerously close to an AI accusation. With our disagreement dampener:
+$$\text{combined\_score} = 0.50 \times 0.60 + 0.50 \times 0.50 = 0.55$$
+The score lands securely inside the `unsure` band ($0.35–0.65$), preventing an unfair AI accusation and allowing human review.
 
 
 
@@ -96,14 +128,12 @@
 
 | Label | Score range | The exact text a reader sees |
 |---|---|---|
-| high-confidence human |  |  |
-| unsure |  |  |
-| high-confidence AI |  |  |
+| high-confidence human | 0.00 – 0.35 | This writing shows the natural rhythm, varied sentence structure, and vocabulary typical of human authorship. |
+| unsure | 0.35 – 0.65 | We couldn't determine the origin of this text with confidence; it contains a blend of predictable patterns and stylistic variation. |
+| high-confidence AI | 0.65 – 1.00 | This text closely reflects the uniform cadence and high predictability characteristic of AI-generated content. |
 
 **Why I worded the "unsure" one this way:**
-<!-- It's the hardest of the three. It has to admit uncertainty without
-     sounding like an accusation, because the person reading it may well have
-     written every word themselves. -->
+The "unsure" label must be explicitly non-accusatory because a substantial portion of text landing in this band is authored by real humans—specifically writers using clear, straightforward vocabulary or concise sentence structures. Phrasing it as "We couldn't determine the origin of this text with confidence" frames the result as a candid acknowledgment of the detector's limitations rather than a veiled suspicion of dishonesty. It completely avoids intimidating technical jargon ("thresholds", "perplexities", "0.52 probability") and emphasizes that human writing naturally exhibits both predictability and variation.
 
 
 

@@ -42,61 +42,48 @@ Two things worth knowing before you pick numbers:
   a **miss**.
 
 ---
-## 1.
+## 1. False positive rate on human writing
 
-<!-- Your criterion. It must name a number. -->
-
-
+Of 10 distinct pieces of verified human-authored writing, at most 1 is labeled high-confidence AI (`guess == "ai"`) across each of the three evaluation trials.
 
 **Why this target:**
-
-
+On a writing platform or academic submission portal, a false accusation inflicts severe asymmetric harm on an honest author, destroying user trust and risking wrongful penalties. A 10% ceiling (at most 1 in 10) sets an enforceable safety standard that requires plain or non-native human writing to land in the "unsure" band rather than being falsely flagged as machine-generated.
 
 ---
 
-## 2.
+## 2. Score spread between canonical AI and human text
 
-<!-- Your criterion. -->
-
-
+The difference between the mean combined score of clearly AI-generated passages and the mean combined score of clearly human-authored passages must be at least 0.35 (`mean_ai_score - mean_human_score >= 0.35`).
 
 **Why this target:**
-
-
+A detector whose average scores cluster narrowly around the midpoint (e.g., 0.48 versus 0.52) offers virtually no discriminative value. Enforcing a minimum score spread of 0.35 ensures that canonical examples cleanly separate into the human and AI confidence bands rather than collapsing entirely into the unsure category.
 
 ---
 
-## 3.
+## 3. Label reachability across all three tiers
 
-<!-- Your criterion. -->
-
-
+Across an evaluation set of diverse test submissions, each of the three output labels (`high-confidence human`, `unsure`, and `high-confidence AI`) must be reached by at least 2 distinct submissions.
 
 **Why this target:**
-
-
+This proves there are no dead bands or threshold disconnects between `scoring.py` and `config.py`. If any of the three categories cannot be produced by real inputs, the classification tiers are poorly calibrated and the system fails to communicate uncertainty or confidence properly.
 
 ---
 
-## 4.
+## 4. Deterministic appeal recording and state transition
 
-<!-- Your criterion. -->
-
-
+100% of appeal requests submitted for a valid `content_id` with non-empty reasoning must return HTTP 200, set the status to `under_review`, and append an audit event to `logs/audit.jsonl`.
 
 **Why this target:**
-
-
+Procedural justice requires that once an author challenges a decision, their appeal is reliably recorded in the audit trail without fail. A silent failure or dropped appeal would leave a writer accused with no recourse, defeating the entire purpose of human-in-the-loop review.
 
 ---
 
-## 5.
+## 5. Graceful rejection of malformed and extreme inputs
 
-<!-- Your criterion. -->
-
-
+100% of malformed or extreme requests (missing `text` field, empty `text: ""`, `text: null`, non-string types, or text exceeding 50,000 characters) return an HTTP 400 Bad Request with a structured error JSON, and 0% result in an unhandled HTTP 500 server crash.
 
 **Why this target:**
+A production service inevitably encounters malformed payloads, scraper probes, and network truncation. Failing cleanly at the boundary with HTTP 400 protects service stability and prevents upstream callers from interpreting a crashed handler as a system outage.
 
 
 
