@@ -9,6 +9,10 @@ You'll edit the thresholds in Milestone 5 and the rate limits in unit 8.
 import os
 from pathlib import Path
 
+# HuggingFace transformers offline defaults (model is downloaded locally)
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
 ROOT = Path(__file__).parent
 
 
@@ -49,13 +53,9 @@ DETECTOR_MAX_TOKENS = 400
 
 # ─── Scoring (Milestone 4) ───────────────────────────────────────────────────
 # How much each signal counts toward the combined score.
-#
-# ⚠️ These are placeholders. Milestone 4 asks you to write your combining rule
-# down BEFORE you code it, and to put the numbers in your README. Whatever you
-# decide, it goes here.
-
-WEIGHT_MODEL_SIGNAL = 0.5
-WEIGHT_STYLE_SIGNAL = 0.5
+WEIGHT_MODEL_SIGNAL = 0.60
+WEIGHT_STYLE_SIGNAL = 0.40
+DISAGREEMENT_THRESHOLD = 0.40
 
 
 # ─── Thresholds (Milestone 5) ────────────────────────────────────────────────
