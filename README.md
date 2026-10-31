@@ -154,11 +154,18 @@ The "unsure" label must be explicitly non-accusatory because a substantial porti
 ```bash
 $ curl -X POST http://127.0.0.1:5000/submit \
   -H "Content-Type: application/json" \
-  -d '{"text": "...", "creator_id": "..."}'
+  -d '{"text": "The implementation of the proposed framework requires careful consideration of several key factors. First, it is important to note that the system must be able to handle a wide variety of different inputs. Additionally, the overall performance of the solution depends on a number of important variables.", "creator_id": "author_alex"}'
 ```
 
 ```json
-
+{
+  "confidence": 0.7474,
+  "content_id": "06a6aff0-acc5-4e03-8ece-933b981a9efe",
+  "guess": "ai",
+  "label": "This text closely reflects the uniform cadence and high predictability characteristic of AI-generated content.",
+  "model_score": 0.8864,
+  "style_score": 0.539
+}
 ```
 
 **An appeal**
@@ -166,11 +173,16 @@ $ curl -X POST http://127.0.0.1:5000/submit \
 ```bash
 $ curl -X POST http://127.0.0.1:5000/appeal \
   -H "Content-Type: application/json" \
-  -d '{"content_id": "...", "reasoning": "..."}'
+  -d '{"content_id": "06a6aff0-acc5-4e03-8ece-933b981a9efe", "reasoning": "I wrote this paragraph for my computer science methodology section. English is my second language so I tend to use standard academic connectors and concise sentences."}'
 ```
 
 ```json
-
+{
+  "content_id": "06a6aff0-acc5-4e03-8ece-933b981a9efe",
+  "message": "Appeal recorded successfully. The submission is now under review.",
+  "ok": true,
+  "status": "under_review"
+}
 ```
 
 **What the log shows afterwards**
@@ -180,7 +192,30 @@ $ curl "http://127.0.0.1:5000/log?limit=3"
 ```
 
 ```json
-
+{
+  "count": 2,
+  "entries": [
+    {
+      "combined_score": 0.7474,
+      "content_id": "06a6aff0-acc5-4e03-8ece-933b981a9efe",
+      "creator_id": "author_alex",
+      "guess": "ai",
+      "label": "This text closely reflects the uniform cadence and high predictability characteristic of AI-generated content.",
+      "model_score": 0.8864,
+      "status": "decided",
+      "style_score": 0.539,
+      "timestamp": "2026-10-31T19:50:15+00:00"
+    },
+    {
+      "content_id": "06a6aff0-acc5-4e03-8ece-933b981a9efe",
+      "creator_id": "author_alex",
+      "event": "appeal",
+      "reasoning": "I wrote this paragraph for my computer science methodology section. English is my second language so I tend to use standard academic connectors and concise sentences.",
+      "status": "under_review",
+      "timestamp": "2026-10-31T19:50:26+00:00"
+    }
+  ]
+}
 ```
 
 ---
@@ -189,15 +224,15 @@ $ curl "http://127.0.0.1:5000/log?limit=3"
 
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* A comprehensive architectural trace and mathematical formulation for combining perplexity from a local language model with stylometric surface features (sentence length variance, TTR, punctuation density), specifically addressing the false-positive edge case of non-native English speakers.
+- *What came back:* A multi-stage pipeline suggestion with a naive weighted average and standard deviation of sentence lengths.
+- *What I changed:* Added a critical disagreement dampener (`abs(model_score - style_score) >= 0.40`) that pulls diverging scores towards the neutral midpoint (0.50), preventing high perplexity predictability on simple plain human writing from falsely escalating past the AI threshold. Also replaced raw standard deviation with the Coefficient of Variation ($CV = \sigma / \mu$) so texts of different lengths remain directly comparable.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* Human-centric, empathetic label wording for readers that avoids alienating authors and provides an actionable appeals pathway.
+- *What came back:* Robotic, threshold-laden strings like "AI detected with 74% confidence (threshold 0.65)" and "Unsure (0.54)".
+- *What I changed:* Completely stripped out machine-oriented terminology ("threshold", "confidence percentage", "model") and rephrased the labels into respectful, descriptive natural language sentences focusing on observable stylistic characteristics (uniform cadence vs. organic rhythm). Designed the "unsure" label as a humble admission of algorithmic limitation rather than an implicit suspicion.
 
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
@@ -327,16 +362,16 @@ that produced it:
 
      SUBMISSION CHECKLIST — unit 7
 
-       [ ] criteria.md has five numbered criteria, each naming a target
-       [ ] Each has a reason underneath
-       [ ] POST /submit returns content_id, guess, confidence, label,
+       [x] criteria.md has five numbered criteria, each naming a target
+       [x] Each has a reason underneath
+       [x] POST /submit returns content_id, guess, confidence, label,
            model_score and style_score
-       [ ] Two signals that measure DIFFERENT things, each with a named blind spot
-       [ ] Three label variants, all reachable, written out in full
-       [ ] POST /appeal changes status and writes to the log
-       [ ] Signals and Scoring names scoring.py::combine_signals
-       [ ] Sample Run: a submission AND an appeal, as pasted text
-       [ ] At least four new commits
+       [x] Two signals that measure DIFFERENT things, each with a named blind spot
+       [x] Three label variants, all reachable, written out in full
+       [x] POST /appeal changes status and writes to the log
+       [x] Signals and Scoring names scoring.py::combine_signals
+       [x] Sample Run: a submission AND an appeal, as pasted text
+       [x] At least four new commits
        [ ] Repository URL submitted — WRITE IT DOWN
 
      SUBMISSION CHECKLIST — unit 8
