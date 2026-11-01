@@ -106,3 +106,4 @@ if __name__ == "__main__":
     print(f"marker_density:    {marker_density(text)} per 100 words")
     print(f"bigram_repetition: {bigram_repetition(text)}")
     print(f"discourse_signal:  {discourse_signal(text)} (higher = more likely AI)")
+
