@@ -372,7 +372,7 @@ that produced it:
        [x] Signals and Scoring names scoring.py::combine_signals
        [x] Sample Run: a submission AND an appeal, as pasted text
        [x] At least four new commits
-       [ ] Repository URL submitted — WRITE IT DOWN
+       [x] Repository URL submitted — https://github.com/tq-ngo/project4-provenance-guard
 
      SUBMISSION CHECKLIST — unit 8
 
