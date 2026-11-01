@@ -240,6 +240,7 @@ $ curl "http://127.0.0.1:5000/log?limit=3"
 We are implementing all three optional stretch features for extra credit:
 
 ### 1. A Third Signal: Discourse & Transition Marker Density (`discourse.py`)
+
 - **What it measures**: The frequency of formulaic LLM discourse connectors (e.g., "moreover", "furthermore", "additionally", "in conclusion", "it is important to note", "delve into", "crucial role") combined with repeated bigram redundancy.
 - **Why it differs from Signal 1 and Signal 2**: Signal 1 measures statistical token predictability via LM perplexity; Signal 2 measures physical sentence geometry (length variance, TTR, punctuation). This third signal evaluates semantic rhetoric—specifically the telltale over-reliance of language models on boilerplate transitional signposts.
 - **Weighting the three signals**:
@@ -251,6 +252,7 @@ We are implementing all three optional stretch features for extra credit:
     The disagreement dampener continues to guard against false accusations if the primary model and style signals split by $\ge 0.40$.
 
 ### 2. Single-Item Status Endpoint: `GET /content/<id>`
+
 - **Route**: `GET /content/<content_id>`
 - **What it does**: Inspects `audit.entries_for(content_id)` and returns the complete, real-time lifecycle status of a specific submission.
 - **Features**:
@@ -258,6 +260,7 @@ We are implementing all three optional stretch features for extra credit:
   - Returns HTTP 404 with a structured error if the `content_id` does not exist in the audit log.
 
 ### 3. Verified-Human Path: Credentialing & Author Badging
+
 - **Concept**: Legitimate writers can earn a verified-human credential through an extra verification step (`POST /creator/verify`).
 - **How it works**:
   - A writer registers their identity/authenticity via `POST /creator/verify`, which records a verified credential in the audit log.
