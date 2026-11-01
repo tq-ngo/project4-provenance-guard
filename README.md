@@ -87,6 +87,7 @@ This signal cannot read or comprehend meaning. It measures text only as shape an
 We compute a weighted average of the two signals (60% weight to Signal 1 because token perplexity across several hundred tokens provides a steadier baseline than short-sample syntax, and 40% weight to Signal 2). However, when the two signals strongly disagree ($|\text{model\_score} - \text{style\_score}| \ge 0.40$), the rule treats this divergence as epistemic uncertainty and pulls the combined score 50% towards the neutral midpoint (0.50). This guarantees that a single flawed signal cannot push an innocent writer past the AI threshold.
 
 **The numbers:**
+
 - `WEIGHT_MODEL_SIGNAL = 0.60`
 - `WEIGHT_STYLE_SIGNAL = 0.40`
 - `DISAGREEMENT_THRESHOLD = 0.40`
@@ -94,6 +95,7 @@ We compute a weighted average of the two signals (60% weight to Signal 1 because
 - `AI_THRESHOLD = 0.65`
 
 Formula:
+
 ```python
 weighted_avg = 0.60 * model_score + 0.40 * style_score
 if abs(model_score - style_score) >= 0.40:
@@ -109,13 +111,12 @@ else:
 
 **A case where my two signals split, and what my rule does with it:**
 Consider plain, clear human writing (such as an essay by a non-native English speaker):
+
 - Signal 1 (`model_score`): `0.80` (the vocabulary is basic and predictable to GPT-2).
 - Signal 2 (`style_score`): `0.30` (the sentence lengths vary naturally between short points and long explanatory sentences).
-The difference $|0.80 - 0.30| = 0.50 \ge 0.40$. A naive weighted average would yield $0.60 \times 0.80 + 0.40 \times 0.30 = 0.60$, dangerously close to an AI accusation. With our disagreement dampener:
-$$\text{combined\_score} = 0.50 \times 0.60 + 0.50 \times 0.50 = 0.55$$
-The score lands securely inside the `unsure` band ($0.35–0.65$), preventing an unfair AI accusation and allowing human review.
-
-
+  The difference $|0.80 - 0.30| = 0.50 \ge 0.40$. A naive weighted average would yield $0.60 \times 0.80 + 0.40 \times 0.30 = 0.60$, dangerously close to an AI accusation. With our disagreement dampener:
+  $$\text{combined\_score} = 0.50 \times 0.60 + 0.50 \times 0.50 = 0.55$$
+  The score lands securely inside the `unsure` band ($0.35–0.65$), preventing an unfair AI accusation and allowing human review.
 
 ---
 
@@ -126,16 +127,14 @@ The score lands securely inside the `unsure` band ($0.35–0.65$), preventing an
 
      Write them for someone who has never heard the word "threshold". -->
 
-| Label | Score range | The exact text a reader sees |
-|---|---|---|
-| high-confidence human | 0.00 – 0.35 | This writing shows the natural rhythm, varied sentence structure, and vocabulary typical of human authorship. |
-| unsure | 0.35 – 0.65 | We couldn't determine the origin of this text with confidence; it contains a blend of predictable patterns and stylistic variation. |
-| high-confidence AI | 0.65 – 1.00 | This text closely reflects the uniform cadence and high predictability characteristic of AI-generated content. |
+| Label                 | Score range | The exact text a reader sees                                                                                                        |
+| --------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| high-confidence human | 0.00 – 0.35 | This writing shows the natural rhythm, varied sentence structure, and vocabulary typical of human authorship.                       |
+| unsure                | 0.35 – 0.65 | We couldn't determine the origin of this text with confidence; it contains a blend of predictable patterns and stylistic variation. |
+| high-confidence AI    | 0.65 – 1.00 | This text closely reflects the uniform cadence and high predictability characteristic of AI-generated content.                      |
 
 **Why I worded the "unsure" one this way:**
 The "unsure" label must be explicitly non-accusatory because a substantial portion of text landing in this band is authored by real humans—specifically writers using clear, straightforward vocabulary or concise sentence structures. Phrasing it as "We couldn't determine the origin of this text with confidence" frames the result as a candid acknowledgment of the detector's limitations rather than a veiled suspicion of dishonesty. It completely avoids intimidating technical jargon ("thresholds", "perplexities", "0.52 probability") and emphasizes that human writing naturally exhibits both predictability and variation.
-
-
 
 ---
 
@@ -224,15 +223,49 @@ $ curl "http://127.0.0.1:5000/log?limit=3"
 
 **Moment 1**
 
-- *What I asked for:* A comprehensive architectural trace and mathematical formulation for combining perplexity from a local language model with stylometric surface features (sentence length variance, TTR, punctuation density), specifically addressing the false-positive edge case of non-native English speakers.
-- *What came back:* A multi-stage pipeline suggestion with a naive weighted average and standard deviation of sentence lengths.
-- *What I changed:* Added a critical disagreement dampener (`abs(model_score - style_score) >= 0.40`) that pulls diverging scores towards the neutral midpoint (0.50), preventing high perplexity predictability on simple plain human writing from falsely escalating past the AI threshold. Also replaced raw standard deviation with the Coefficient of Variation ($CV = \sigma / \mu$) so texts of different lengths remain directly comparable.
+- _What I asked for:_ A comprehensive architectural trace and mathematical formulation for combining perplexity from a local language model with stylometric surface features (sentence length variance, TTR, punctuation density), specifically addressing the false-positive edge case of non-native English speakers.
+- _What came back:_ A multi-stage pipeline suggestion with a naive weighted average and standard deviation of sentence lengths.
+- _What I changed:_ Added a critical disagreement dampener (`abs(model_score - style_score) >= 0.40`) that pulls diverging scores towards the neutral midpoint (0.50), preventing high perplexity predictability on simple plain human writing from falsely escalating past the AI threshold. Also replaced raw standard deviation with the Coefficient of Variation ($CV = \sigma / \mu$) so texts of different lengths remain directly comparable.
 
 **Moment 2**
 
-- *What I asked for:* Human-centric, empathetic label wording for readers that avoids alienating authors and provides an actionable appeals pathway.
-- *What came back:* Robotic, threshold-laden strings like "AI detected with 74% confidence (threshold 0.65)" and "Unsure (0.54)".
-- *What I changed:* Completely stripped out machine-oriented terminology ("threshold", "confidence percentage", "model") and rephrased the labels into respectful, descriptive natural language sentences focusing on observable stylistic characteristics (uniform cadence vs. organic rhythm). Designed the "unsure" label as a humble admission of algorithmic limitation rather than an implicit suspicion.
+- _What I asked for:_ Human-centric, empathetic label wording for readers that avoids alienating authors and provides an actionable appeals pathway.
+- _What came back:_ Robotic, threshold-laden strings like "AI detected with 74% confidence (threshold 0.65)" and "Unsure (0.54)".
+- _What I changed:_ Completely stripped out machine-oriented terminology ("threshold", "confidence percentage", "model") and rephrased the labels into respectful, descriptive natural language sentences focusing on observable stylistic characteristics (uniform cadence vs. organic rhythm). Designed the "unsure" label as a humble admission of algorithmic limitation rather than an implicit suspicion.
+
+---
+
+## Stretch Features
+
+We are implementing all three optional stretch features for extra credit:
+
+### 1. A Third Signal: Discourse & Transition Marker Density (`discourse.py`)
+- **What it measures**: The frequency of formulaic LLM discourse connectors (e.g., "moreover", "furthermore", "additionally", "in conclusion", "it is important to note", "delve into", "crucial role") combined with repeated bigram redundancy.
+- **Why it differs from Signal 1 and Signal 2**: Signal 1 measures statistical token predictability via LM perplexity; Signal 2 measures physical sentence geometry (length variance, TTR, punctuation). This third signal evaluates semantic rhetoric—specifically the telltale over-reliance of language models on boilerplate transitional signposts.
+- **Weighting the three signals**:
+  - `WEIGHT_MODEL_SIGNAL = 0.50` (Local GPT-2 perplexity)
+  - `WEIGHT_STYLE_SIGNAL = 0.30` (Sentence length variance, TTR, punctuation)
+  - `WEIGHT_DISCOURSE_SIGNAL = 0.20` (Discourse transition markers & n-gram redundancy)
+  - Combined formula:
+    $$\text{weighted\_avg} = 0.50 \cdot \text{model\_score} + 0.30 \cdot \text{style\_score} + 0.20 \cdot \text{discourse\_score}$$
+    The disagreement dampener continues to guard against false accusations if the primary model and style signals split by $\ge 0.40$.
+
+### 2. Single-Item Status Endpoint: `GET /content/<id>`
+- **Route**: `GET /content/<content_id>`
+- **What it does**: Inspects `audit.entries_for(content_id)` and returns the complete, real-time lifecycle status of a specific submission.
+- **Features**:
+  - Returns `status` (`decided`, `under_review`), `guess`, `confidence`, `label`, original signal scores, creator ID, whether an appeal was filed, and a chronological event timeline.
+  - Returns HTTP 404 with a structured error if the `content_id` does not exist in the audit log.
+
+### 3. Verified-Human Path: Credentialing & Author Badging
+- **Concept**: Legitimate writers can earn a verified-human credential through an extra verification step (`POST /creator/verify`).
+- **How it works**:
+  - A writer registers their identity/authenticity via `POST /creator/verify`, which records a verified credential in the audit log.
+  - When a verified creator submits text to `POST /submit`, the system recognizes their credential:
+    1. Returns `"creator_verified": true` and `"credential": "verified_human"` in the response.
+    2. Prepends a verified human badge to their work: `"[Verified Human Author] "`.
+    3. Incorporates a protective prior during classification to safeguard verified writers from false accusations.
+  - Verification status can be queried at any time via `GET /creator/<creator_id>`.
 
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
@@ -240,9 +273,10 @@ $ curl "http://127.0.0.1:5000/log?limit=3"
 
 ## Rate Limiting
 
-**My limits:** ___ per minute, ___ per day
+**My limits:** **_ per minute, _** per day
 
 **Why those numbers and not others:**
+
 <!-- Think about two people: a real writer submitting their own work a few
      times an hour, and a script sending a thousand variations to map your
      thresholds. Your numbers have to be liveable for the first and hostile to
@@ -267,8 +301,6 @@ can look like one. -->
 <!-- Every attack with its outcome and a held-or-broke mark.
      `run_attacks.py --label before` produces the table. -->
 
-
-
 **Ten audit log entries from the run**
 
 <!-- Choose entries that show the interesting failures, not the ten easiest. -->
@@ -280,8 +312,6 @@ can look like one. -->
 **The single worst outcome** — the one I'd least want to explain to a writer
 whose work got caught by it:
 
-
-
 ---
 
 ## Run Log and Verdicts
@@ -289,12 +319,12 @@ whose work got caught by it:
 <!-- Your five criteria across three trials. `run_eval.py --label before`. -->
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
-|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |
+| --------- | ------ | ----- | ----- | ----- | ------- |
+| 1.        |        |       |       |       |         |
+| 2.        |        |       |       |       |         |
+| 3.        |        |       |       |       |         |
+| 4.        |        |       |       |       |         |
+| 5.        |        |       |       |       |         |
 
 **Real output from one trial**, pasted as text, naming the file and function
 that produced it:
@@ -319,8 +349,6 @@ that produced it:
 
      Look for a pattern. Five failures on one signal is one problem, not five. -->
 
-
-
 ---
 
 ## The Improvement
@@ -333,14 +361,10 @@ that produced it:
 
 <!-- Same format. `run_attacks.py --label after` -->
 
-
-
 **Did it help, and how do I know:**
 
 <!-- Widening the unsure band usually fixes one problem and creates another.
      Reporting that trade honestly is worth full credit. -->
-
-
 
 ---
 
@@ -349,14 +373,10 @@ that produced it:
 <!-- For each attack still getting through and each criterion still missed:
      what you'd do, and why you stopped. -->
 
-
-
 **The trade I'd make if this ran for real:**
 
 <!-- Two sentences. Fewer wrong accusations means more AI text getting through.
      Say which way you'd go and WHO PAYS FOR IT. -->
-
-
 
 <!-- ═════════════════════════════════════════════════════════════════════
 

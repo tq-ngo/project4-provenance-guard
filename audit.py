@@ -155,3 +155,40 @@ def clear() -> int:
 def entries_for(content_id: str) -> list[dict]:
     """Every entry touching one content id, in order."""
     return [e for e in read_entries() if e.get("content_id") == content_id]
+
+
+# ── Creator Verification (Stretch Feature 3) ──────────────────────────────────
+
+def log_creator_verification(creator_id: str, verification_type: str, evidence: str = "") -> dict:
+    """
+    Record that a creator has completed the verified-human credentialing step.
+    """
+    return _append({
+        "timestamp": _now(),
+        "creator_id": creator_id,
+        "event": "creator_verified",
+        "status": "verified",
+        "verification_type": verification_type,
+        "evidence": evidence,
+        "credential": "verified_human",
+    })
+
+
+def is_creator_verified(creator_id: str) -> bool:
+    """Check if a creator has earned the verified-human credential."""
+    if not creator_id or creator_id == "anonymous":
+        return False
+    for entry in read_entries():
+        if entry.get("creator_id") == creator_id and entry.get("event") == "creator_verified":
+            return True
+    return False
+
+
+def get_creator_verification(creator_id: str) -> dict | None:
+    """Get verification details for a creator if verified."""
+    if not creator_id:
+        return None
+    for entry in reversed(read_entries()):
+        if entry.get("creator_id") == creator_id and entry.get("event") == "creator_verified":
+            return entry
+    return None

@@ -19,19 +19,26 @@ you claim, so that line should read `scoring.py::combine_signals`.
 import config
 
 
-def combine_signals(model_score: float, style_score: float) -> float:
+def combine_signals(
+    model_score: float,
+    style_score: float,
+    discourse_score: float | None = None,
+) -> float:
     """
-    Combine two 0–1 signals into one 0–1 score.
+    Combine signals into one 0–1 score.
 
-    Uses weighted combination with disagreement damping:
-      1. Baseline weighted average using config.WEIGHT_MODEL_SIGNAL and config.WEIGHT_STYLE_SIGNAL.
-      2. If signals disagree strongly (|model_score - style_score| >= config.DISAGREEMENT_THRESHOLD),
-         the score is pulled 50% toward 0.50 (unsure midpoint) to guard against false accusations.
+    Supports both 2-signal baseline (Unit 7) and 3-signal fusion (Stretch Feature 1).
+    When discourse_score is None, uses 60% model / 40% style.
+    When discourse_score is provided, uses 50% model / 30% style / 20% discourse.
     """
-    weighted_avg = (
-        config.WEIGHT_MODEL_SIGNAL * model_score
-        + config.WEIGHT_STYLE_SIGNAL * style_score
-    )
+    if discourse_score is None:
+        weighted_avg = 0.60 * model_score + 0.40 * style_score
+    else:
+        w_model = getattr(config, "WEIGHT_MODEL_SIGNAL", 0.50)
+        w_style = getattr(config, "WEIGHT_STYLE_SIGNAL", 0.30)
+        w_disc = getattr(config, "WEIGHT_DISCOURSE_SIGNAL", 0.20)
+        weighted_avg = w_model * model_score + w_style * style_score + w_disc * discourse_score
+
     diff = abs(model_score - style_score)
     threshold = getattr(config, "DISAGREEMENT_THRESHOLD", 0.40)
     if diff >= threshold:

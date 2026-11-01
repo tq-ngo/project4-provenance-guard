@@ -31,6 +31,7 @@ from flask import Flask, jsonify, request
 import audit
 import config
 import detector
+import discourse
 import scoring
 import stylometry
 
@@ -230,8 +231,13 @@ def submit():
         return jsonify({"error": "bad_request", "message": f"Input text cannot be scored: {exc}"}), 400
 
     style_score = stylometry.style_signal(text)
-    combined_score = scoring.combine_signals(model_score, style_score)
+    discourse_score = discourse.discourse_signal(text)
+    combined_score = scoring.combine_signals(model_score, style_score, discourse_score)
     guess, label_text = scoring.score_to_label(combined_score)
+
+    is_verified = audit.is_creator_verified(creator_id)
+    if is_verified:
+        label_text = f"[Verified Human Author] {label_text}"
 
     audit.log_decision(
         content_id=content_id,
@@ -239,19 +245,27 @@ def submit():
         guess=guess,
         model_score=model_score,
         style_score=style_score,
+        discourse_score=discourse_score,
         combined_score=combined_score,
         label=label_text,
         status="decided",
+        creator_verified=is_verified,
     )
 
-    return jsonify({
+    response_data = {
         "content_id": content_id,
         "guess": guess,
         "confidence": combined_score,
         "label": label_text,
         "model_score": model_score,
         "style_score": style_score,
-    }), 200
+        "discourse_score": discourse_score,
+    }
+    if is_verified:
+        response_data["creator_verified"] = True
+        response_data["credential"] = "verified_human"
+
+    return jsonify(response_data), 200
 
 
 @app.post("/appeal")
@@ -290,6 +304,105 @@ def appeal():
         "status": "under_review",
         "content_id": content_id,
         "message": "Appeal recorded successfully. The submission is now under review.",
+    }), 200
+
+
+# ── Stretch Features ─────────────────────────────────────────────────────────
+
+@app.get("/content/<content_id>")
+def get_content(content_id):
+    """
+    Get one item's current status and full event history. (Stretch Feature 2)
+    """
+    entries = audit.entries_for(content_id)
+    if not entries:
+        return jsonify({
+            "error": "not_found",
+            "message": f"No submission found for content_id '{content_id}'.",
+        }), 404
+
+    initial_decision = entries[0]
+    latest_entry = entries[-1]
+
+    appealed = any(e.get("event") == "appeal" for e in entries)
+
+    return jsonify({
+        "content_id": content_id,
+        "creator_id": initial_decision.get("creator_id"),
+        "status": latest_entry.get("status", "decided"),
+        "guess": initial_decision.get("guess"),
+        "confidence": initial_decision.get("combined_score"),
+        "label": initial_decision.get("label"),
+        "model_score": initial_decision.get("model_score"),
+        "style_score": initial_decision.get("style_score"),
+        "discourse_score": initial_decision.get("discourse_score"),
+        "appealed": appealed,
+        "events": [
+            {
+                "timestamp": e.get("timestamp"),
+                "event": e.get("event", "decision"),
+                "status": e.get("status"),
+                "reasoning": e.get("reasoning"),
+            }
+            for e in entries
+        ],
+    }), 200
+
+
+@app.post("/creator/verify")
+def verify_creator():
+    """
+    Writer earns a verified-human credential through an extra step. (Stretch Feature 3)
+
+    Expects JSON:
+        {"creator_id": "...", "verification_type": "...", "evidence": "..."}
+    """
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "bad_request", "message": "Request body must be a JSON object"}), 400
+
+    creator_id = payload.get("creator_id")
+    if not isinstance(creator_id, str) or not creator_id.strip():
+        return jsonify({"error": "bad_request", "message": "Field 'creator_id' is required"}), 400
+
+    v_type = payload.get("verification_type", "portfolio_attestation")
+    evidence = payload.get("evidence", "")
+
+    entry = audit.log_creator_verification(
+        creator_id=creator_id.strip(),
+        verification_type=v_type,
+        evidence=evidence,
+    )
+
+    return jsonify({
+        "ok": True,
+        "creator_id": creator_id.strip(),
+        "credential": "verified_human",
+        "status": "verified",
+        "message": f"Creator '{creator_id.strip()}' has earned the verified-human credential.",
+        "timestamp": entry.get("timestamp"),
+    }), 200
+
+
+@app.get("/creator/<creator_id>")
+def get_creator_status(creator_id):
+    """
+    Query whether a creator has earned the verified-human credential. (Stretch Feature 3)
+    """
+    record = audit.get_creator_verification(creator_id)
+    if not record:
+        return jsonify({
+            "creator_id": creator_id,
+            "verified": False,
+            "credential": None,
+        }), 200
+
+    return jsonify({
+        "creator_id": creator_id,
+        "verified": True,
+        "credential": "verified_human",
+        "verified_at": record.get("timestamp"),
+        "verification_type": record.get("verification_type"),
     }), 200
 
 

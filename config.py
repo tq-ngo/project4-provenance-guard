@@ -51,10 +51,11 @@ DETECTOR_MODEL = os.getenv("AI201_DETECTOR_MODEL", "gpt2")
 DETECTOR_MAX_TOKENS = 400
 
 
-# ─── Scoring (Milestone 4) ───────────────────────────────────────────────────
-# How much each signal counts toward the combined score.
-WEIGHT_MODEL_SIGNAL = 0.60
-WEIGHT_STYLE_SIGNAL = 0.40
+# ─── Scoring (Milestone 4 & Stretch Feature 1) ────────────────────────────────
+# Weights for multi-signal fusion:
+WEIGHT_MODEL_SIGNAL = 0.50
+WEIGHT_STYLE_SIGNAL = 0.30
+WEIGHT_DISCOURSE_SIGNAL = 0.20
 DISAGREEMENT_THRESHOLD = 0.40
 
 
