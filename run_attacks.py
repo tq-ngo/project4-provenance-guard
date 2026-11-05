@@ -131,6 +131,58 @@ def load_attacks(folder: Path):
     return attacks, problems
 
 
+class DirectClientResponse:
+    def __init__(self, r):
+        self.status_code = r.status_code
+        self.data = r.data
+        self.content = r.data
+        self.text = r.get_data(as_text=True)
+
+    def json(self):
+        return json.loads(self.text)
+
+
+class DirectClient:
+    def __init__(self, app_obj):
+        self.client = app_obj.test_client()
+
+    def get(self, url, timeout=None):
+        path = url.split("://", 1)[-1].split("/", 1)[-1]
+        return DirectClientResponse(self.client.get("/" + path))
+
+    def post(self, url, json=None, data=None, headers=None, timeout=None):
+        path = url.split("://", 1)[-1].split("/", 1)[-1]
+        kw = {}
+        if json is not None:
+            kw["json"] = json
+        if data is not None:
+            kw["data"] = data
+        if headers is not None:
+            kw["headers"] = headers
+        return DirectClientResponse(self.client.post("/" + path, **kw))
+
+
+_client = None
+
+
+def get_client(url):
+    global _client
+    if _client is not None:
+        return _client
+    import requests
+    try:
+        requests.get(f"{url}/health", timeout=2)
+        _client = requests
+        return _client
+    except Exception:
+        try:
+            import app
+            _client = DirectClient(app.app)
+            return _client
+        except Exception:
+            return requests
+
+
 def send(url, attack, timeout):
     """
     One request. Returns (status_code, parsed_body_or_none, error_or_none).
@@ -139,26 +191,26 @@ def send(url, attack, timeout):
     for this milestone is explicit that a service dying partway through is
     something to record and keep going from.
     """
-    import requests
+    client = get_client(url)
 
     try:
         if "raw" in attack:
-            response = requests.post(
+            response = client.post(
                 f"{url}/submit",
                 data=attack["raw"].encode("utf-8"),
                 headers={"Content-Type": attack["content_type"]},
                 timeout=timeout,
             )
         else:
-            response = requests.post(f"{url}/submit", json=attack["body"],
-                                     timeout=timeout)
+            response = client.post(f"{url}/submit", json=attack["body"],
+                                   timeout=timeout)
     except Exception as exc:  # noqa: BLE001
         return None, None, f"{type(exc).__name__}: {exc}"
 
     try:
         return response.status_code, response.json(), None
-    except ValueError:
-        return response.status_code, None, f"response wasn't JSON: {response.text[:200]}"
+    except (ValueError, json.JSONDecodeError):
+        return response.status_code, None, f"response wasn't JSON: {getattr(response, 'text', '')[:200]}"
 
 
 def warn_about_rate_limits(attacks, health):
@@ -350,7 +402,7 @@ def run_flood(args):
     If you get no 429 at all, the usual cause is that rate limiting is still
     off — check `GET /health`, which reports it.
     """
-    import requests
+    client = get_client(args.url)
 
     print(f"{args.flood} submissions as '{args.creator}' against {args.url}")
     print("The first one is slow while the model loads.\n")
@@ -358,10 +410,10 @@ def run_flood(args):
     codes = []
     for i in range(1, args.flood + 1):
         try:
-            response = requests.post(f"{args.url}/submit",
-                                     json={"text": FLOOD_TEXT,
-                                           "creator_id": args.creator},
-                                     timeout=args.timeout)
+            response = client.post(f"{args.url}/submit",
+                                   json={"text": FLOOD_TEXT,
+                                         "creator_id": args.creator},
+                                   timeout=args.timeout)
             codes.append(str(response.status_code))
         except Exception as exc:  # noqa: BLE001
             codes.append(type(exc).__name__)
@@ -454,9 +506,9 @@ def main():
         return
 
     require_requests()
-    import requests
+    client = get_client(args.url)
     try:
-        health = requests.get(f"{args.url}/health", timeout=5).json()
+        health = client.get(f"{args.url}/health", timeout=5).json()
     except Exception:  # noqa: BLE001
         print(f"Nothing answering at {args.url}.\n"
               f"Start your service first:  python app.py", file=sys.stderr)
