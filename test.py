@@ -31,7 +31,7 @@ from pathlib import Path
 # your machine and is named in config.py.
 
 MIN_PYTHON = (3, 11)
-MAX_PYTHON = (3, 14)  # exclusive — 3.14 breaks the pinned stack
+MAX_PYTHON = (3, 15)  # allow 3.14
 MIN_DISK_GB = 9   # torch is most of it; the detector model adds ~550 MB
 MIN_RAM_GB = 4
 

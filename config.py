@@ -23,7 +23,7 @@ ROOT = Path(__file__).parent
 # traffic from outside the box, and that means `0.0.0.0`. Setting the env var
 # is how you get it; the default keeps your local `curl` commands unchanged.
 HOST = os.getenv("HOST", "127.0.0.1")
-PORT = int(os.getenv("PORT", "5000"))
+PORT = int(os.getenv("PORT", "5001"))
 
 # Flask's debug mode gives anyone who can reach the service an interactive
 # Python prompt inside your process. Fine on loopback, a gift to strangers
@@ -73,7 +73,7 @@ DISAGREEMENT_THRESHOLD = 0.40
 # that decide who pays for it.
 
 HUMAN_THRESHOLD = 0.35
-AI_THRESHOLD = 0.65
+AI_THRESHOLD = 0.58
 
 # ⚠️ One thing that catches people out in Milestone 5. A weighted average can
 # only land between its two inputs — so while `style_signal` is still the stub
@@ -93,7 +93,7 @@ AI_THRESHOLD = 0.65
 # an hour, and a script sending a thousand variations to map your thresholds.
 # Your README has to say why your numbers and not others.
 
-RATE_LIMITING_ENABLED = os.getenv("AI201_RATE_LIMITS", "0") == "1"
+RATE_LIMITING_ENABLED = True
 
 RATE_LIMIT_PER_MINUTE = 10
 RATE_LIMIT_PER_DAY = 200
