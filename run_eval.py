@@ -42,6 +42,58 @@ for _stream in (sys.stdout, sys.stderr):
 DEFAULT_URL = f"http://{config.HOST}:{config.PORT}"
 
 
+class DirectClientResponse:
+    def __init__(self, r):
+        self.status_code = r.status_code
+        self.data = r.data
+        self.content = r.data
+        self.text = r.get_data(as_text=True)
+
+    def json(self):
+        return json.loads(self.text)
+
+
+class DirectClient:
+    def __init__(self, app_obj):
+        self.client = app_obj.test_client()
+
+    def get(self, url, timeout=None):
+        path = url.split("://", 1)[-1].split("/", 1)[-1]
+        return DirectClientResponse(self.client.get("/" + path))
+
+    def post(self, url, json=None, data=None, headers=None, timeout=None):
+        path = url.split("://", 1)[-1].split("/", 1)[-1]
+        kw = {}
+        if json is not None:
+            kw["json"] = json
+        if data is not None:
+            kw["data"] = data
+        if headers is not None:
+            kw["headers"] = headers
+        return DirectClientResponse(self.client.post("/" + path, **kw))
+
+
+_client = None
+
+
+def get_client(url):
+    global _client
+    if _client is not None:
+        return _client
+    import requests
+    try:
+        requests.get(f"{url}/health", timeout=2)
+        _client = requests
+        return _client
+    except Exception:
+        try:
+            import app
+            _client = DirectClient(app.app)
+            return _client
+        except Exception:
+            return requests
+
+
 def bodies_for(scenario):
     """
     The request bodies one scenario sends.
@@ -96,8 +148,9 @@ def main():
             print(f"  - {problem}", file=sys.stderr)
         sys.exit(1)
 
+    client = get_client(args.url)
     try:
-        requests.get(f"{args.url}/health", timeout=5)
+        client.get(f"{args.url}/health", timeout=5)
     except Exception:  # noqa: BLE001
         print(f"Nothing answering at {args.url}. Start it:  python app.py",
               file=sys.stderr)
@@ -116,24 +169,47 @@ def main():
             for i, body in enumerate(bodies_for(scenario), 1):
                 preview = describe(body)
                 try:
-                    response = requests.post(f"{args.url}/submit", json=body,
-                                             timeout=args.timeout)
-                    payload = response.json() if response.content else {}
-                    results.append({
-                        "status": response.status_code,
-                        "guess": payload.get("guess"),
-                        "confidence": payload.get("confidence"),
-                        "model_score": payload.get("model_score"),
-                        "style_score": payload.get("style_score"),
-                        "label": payload.get("label"),
-                        "sent": preview,
-                    })
+                    if body.get("action") == "appeal":
+                        sub_resp = client.post(
+                            f"{args.url}/submit",
+                            json={"text": body["text"], "creator_id": body.get("creator_id", f"appeal_user_{i}")},
+                            timeout=args.timeout,
+                        )
+                        sub_json = sub_resp.json() if getattr(sub_resp, "content", None) else {}
+                        cid = sub_json.get("content_id")
+                        response = client.post(
+                            f"{args.url}/appeal",
+                            json={"content_id": cid, "reasoning": body["reasoning"]},
+                            timeout=args.timeout,
+                        )
+                        payload = response.json() if getattr(response, "content", None) else {}
+                        results.append({
+                            "status": response.status_code,
+                            "guess": payload.get("status"),
+                            "appeal_status": payload.get("status"),
+                            "ok": payload.get("ok"),
+                            "content_id": cid,
+                            "sent": preview,
+                        })
+                    else:
+                        response = client.post(f"{args.url}/submit", json=body,
+                                               timeout=args.timeout)
+                        payload = response.json() if getattr(response, "content", None) else {}
+                        results.append({
+                            "status": response.status_code,
+                            "guess": payload.get("guess"),
+                            "confidence": payload.get("confidence"),
+                            "model_score": payload.get("model_score"),
+                            "style_score": payload.get("style_score"),
+                            "label": payload.get("label"),
+                            "sent": preview,
+                        })
                 except Exception as exc:  # noqa: BLE001
                     results.append({"status": None, "error": f"{type(exc).__name__}: {exc}",
                                     "sent": preview})
 
             trials.append(results)
-            guesses = [r.get("guess") or "—" for r in results]
+            guesses = [r.get("guess") or str(r.get("status")) or "—" for r in results]
             print(f"  trial {trial}: {', '.join(guesses)}")
 
         rows.append({"scenario": scenario, "trials": trials})
