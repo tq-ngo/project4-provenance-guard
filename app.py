@@ -24,6 +24,7 @@ Routes:
     GET  /health      is the service up, and is the model loaded
 """
 
+import re
 import uuid
 
 from flask import Flask, jsonify, request
@@ -221,6 +222,19 @@ def submit():
     if len(text) > 50000:
         audit.log_rejection(creator_id=creator_id, reason="text_too_large")
         return jsonify({"error": "bad_request", "message": "Field 'text' exceeds maximum allowed length of 50000 characters"}), 400
+
+    # Linguistic validation: ensure the text contains at least 3 recognizable words
+    extracted_words = re.findall(r"[^\W\d_]{2,}", text)
+    if len(extracted_words) < 3:
+        audit.log_rejection(
+            creator_id=creator_id,
+            reason="insufficient_linguistic_tokens",
+            detail=f"found {len(extracted_words)} words",
+        )
+        return jsonify({
+            "error": "bad_request",
+            "message": "Field 'text' must contain at least 3 recognizable linguistic words",
+        }), 400
 
     content_id = str(uuid.uuid4())
 
